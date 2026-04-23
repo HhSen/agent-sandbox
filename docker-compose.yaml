@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: 2025 Weibo, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+
+  opensandbox-server:
+    build:
+      dockerfile: docker/opensandbox/Dockerfile
+    image: opensandbox/server:local
+    container_name: opensandbox-server
+    restart: unless-stopped
+    ports:
+      - "${OPENSANDBOX_PORT:-8090}:8090"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker/opensandbox/config.toml:/etc/opensandbox/config.toml:ro
+    environment:
+      - SANDBOX_CONFIG_PATH=/etc/opensandbox/config.toml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - wegent-network
+
+  # Build-only services for sandbox runtime images.
+  # These images are spawned dynamically by opensandbox-server at runtime (not fixed services).
+  # Run `docker compose build execd egress code-interpreter` once before starting the stack.
+  execd:
+    build:
+      context: .
+      dockerfile: opensandbox_components/execd/Dockerfile
+    image: opensandbox/execd:local
+    profiles: [ sandbox-images ]
+    entrypoint: [ "true" ]
+
+  egress:
+    build:
+      context: .
+      dockerfile: opensandbox_components/egress/Dockerfile
+    image: opensandbox/egress:local
+    profiles: [ sandbox-images ]
+    entrypoint: [ "true" ]
+
+  code-interpreter:
+    build:
+      context: .
+      dockerfile: docker/code-interpreter/Dockerfile
+    image: opensandbox/code-interpreter:local
+    profiles: [ sandbox-images ]
+    entrypoint: [ "true" ]
+
+networks:
+  wegent-network:
+    driver: bridge
+    external: false
+    name: wegent-network
