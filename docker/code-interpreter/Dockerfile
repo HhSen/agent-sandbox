@@ -57,11 +57,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gnupg lsb-release \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Install Python (3.10 - 3.14) using uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
-    mv /root/.local/bin/uv /usr/local/bin/uv && \
-    mv /root/.local/bin/uvx /usr/local/bin/uvx && \
-    mkdir -p /opt/python/versions && \
+# 2. Install uv and Python (3.10 - 3.14)
+# Pin to a specific version for reproducible builds, e.g. ghcr.io/astral-sh/uv:0.x.y
+COPY --from=ghcr.io/astral-sh/uv:0.11.7 /uv /uvx /usr/local/bin/
+RUN mkdir -p /opt/python/versions && \
     uv python install 3.10 3.11 3.12 3.13 && \
     (uv python install 3.14 || echo "Python 3.14 skipped")
 
