@@ -20,7 +20,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
-      - wegent-network
+      - sandbox-network
 
   # Build-only services for sandbox runtime images.
   # These images are spawned dynamically by opensandbox-server at runtime (not fixed services).
@@ -50,7 +50,7 @@ services:
     entrypoint: [ "true" ]
 
 networks:
-  wegent-network:
+  sandbox-network:
     driver: bridge
     external: false
-    name: wegent-network
+    name: sandbox-network
