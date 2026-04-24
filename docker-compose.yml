@@ -10,17 +10,12 @@ services:
     image: opensandbox/server:local
     container_name: opensandbox-server
     restart: unless-stopped
-    ports:
-      - "${OPENSANDBOX_PORT:-8090}:8090"
+    network_mode: host
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./docker/opensandbox/config.toml:/etc/opensandbox/config.toml:ro
     environment:
       - SANDBOX_CONFIG_PATH=/etc/opensandbox/config.toml
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - sandbox-network
 
   # Build-only services for sandbox runtime images.
   # These images are spawned dynamically by opensandbox-server at runtime (not fixed services).
@@ -29,6 +24,8 @@ services:
     build:
       context: .
       dockerfile: opensandbox_components/execd/Dockerfile
+      platforms:
+        - linux/amd64
     image: opensandbox/execd:local
     profiles: [ sandbox-images ]
     entrypoint: [ "true" ]
@@ -37,6 +34,8 @@ services:
     build:
       context: .
       dockerfile: opensandbox_components/egress/Dockerfile
+      platforms:
+        - linux/amd64
     image: opensandbox/egress:local
     profiles: [ sandbox-images ]
     entrypoint: [ "true" ]
@@ -45,12 +44,8 @@ services:
     build:
       context: .
       dockerfile: docker/code-interpreter/Dockerfile
+      platforms:
+        - linux/amd64
     image: opensandbox/code-interpreter:local
     profiles: [ sandbox-images ]
     entrypoint: [ "true" ]
-
-networks:
-  sandbox-network:
-    driver: bridge
-    external: false
-    name: sandbox-network

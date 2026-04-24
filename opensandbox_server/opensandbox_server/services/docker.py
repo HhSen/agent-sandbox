@@ -717,8 +717,12 @@ class DockerSandboxService(DockerDiagnosticsMixin, OSSFSMixin, SandboxService, E
         entrypoint = container.attrs.get("Config", {}).get("Cmd") or []
         if isinstance(entrypoint, str):
             entrypoint = [entrypoint]
-        image_tags = container.image.tags
-        image_uri = image_tags[0] if image_tags else container.image.short_id
+        try:
+            image_tags = container.image.tags
+            image_uri = image_tags[0] if image_tags else container.image.short_id
+        except ImageNotFound:
+            image_tags = []
+            image_uri = container.attrs.get("Config", {}).get("Image", "") or container.attrs.get("Image", "")
         image_spec = ImageSpec(uri=image_uri)
 
         created_at = parse_timestamp(container.attrs.get("Created"))
@@ -2063,15 +2067,19 @@ class DockerSandboxService(DockerDiagnosticsMixin, OSSFSMixin, SandboxService, E
             # so a direct connection to the port is always reachable.
             if self.network_mode == HOST_NETWORK_MODE:
                 return self._resolve_internal_endpoint(container, port)
-            # Bridge mode: the container's bridge IP (172.17.x.x) is not reachable
-            # when the server itself runs inside Docker on a different network.
-            # Route through execd's host-mapped port instead, which is accessible
-            # via the configured proxy host (e.g. host.docker.internal).
-            return self._resolve_host_mapped_endpoint(
-                self._resolve_proxy_host(),
-                labels,
-                port,
-            )
+            # Bridge / user-defined network:
+            # When docker.host_ip is configured the server is in a container on a
+            # different network from the sandbox containers (docker0), so it must route
+            # through the execd host-mapped port via the configured host_ip.
+            # Without host_ip (server on host network or on the same user-defined network
+            # as the containers) the container IP is reachable directly.
+            if self.app_config.docker.host_ip:
+                return self._resolve_host_mapped_endpoint(
+                    self._resolve_proxy_host(),
+                    labels,
+                    port,
+                )
+            return self._resolve_internal_endpoint(container, port)
 
         public_host = self._resolve_public_host()
 

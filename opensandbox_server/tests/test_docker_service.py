@@ -154,6 +154,7 @@ async def test_create_sandbox_applies_security_defaults(mock_docker):
     assert host_config.get("pids_limit") == service.app_config.docker.pids_limit
     assert not host_config.get("privileged")
 
+@pytest.mark.asyncio
 @patch("opensandbox_server.services.docker.docker")
 async def test_create_sandbox_privileged_mode(mock_docker):
     """privileged=True is forwarded to the Docker host config."""
@@ -3094,3 +3095,42 @@ class TestDockerVolumeValidation:
 
         host_config_call = mock_client.api.create_host_config.call_args
         assert "binds" not in host_config_call.kwargs
+
+
+@patch("opensandbox_server.services.docker.docker")
+def test_container_to_sandbox_image_not_found(mock_docker):
+    """_container_to_sandbox should not raise when the container's image has been removed."""
+    from docker.errors import ImageNotFound
+    from unittest.mock import PropertyMock
+
+    mock_client = MagicMock()
+    mock_docker.from_env.return_value = mock_client
+
+    service = DockerSandboxService(config=_app_config())
+
+    # Use a dedicated subclass so the property doesn't pollute the global MagicMock class.
+    class ContainerWithMissingImage(MagicMock):
+        pass
+
+    container = ContainerWithMissingImage()
+    container.attrs = {
+        "Config": {
+            "Labels": {SANDBOX_ID_LABEL: "sandbox-xyz"},
+            "Image": "opensandbox/code-interpreter:local",
+            "Cmd": ["/entrypoint.sh"],
+        },
+        "Created": "2025-01-01T00:00:00Z",
+        "State": {
+            "Status": "running",
+            "Running": True,
+            "FinishedAt": "0001-01-01T00:00:00Z",
+            "ExitCode": 0,
+        },
+    }
+    # Simulate Docker returning ImageNotFound when the container's image has been removed.
+    type(container).image = PropertyMock(side_effect=ImageNotFound("gone"))
+
+    sandbox = service._container_to_sandbox(container, "sandbox-xyz")
+
+    assert sandbox is not None
+    assert sandbox.image.uri == "opensandbox/code-interpreter:local"

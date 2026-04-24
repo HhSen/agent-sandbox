@@ -22,7 +22,6 @@ volume_default_size = "1Gi"
 
 [docker]
 network_mode = "bridge"
-host_ip = "host.docker.internal"
 drop_capabilities = [
     "AUDIT_WRITE",
     "MKNOD",
