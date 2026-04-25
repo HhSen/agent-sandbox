@@ -136,6 +136,71 @@ cd opensandbox_components/ingress && ./build.sh
 | `ORANGEFS_RS_ADDR` / `ORANGEFS_TOKEN` / `ORANGEFS_VOLUME` | entrypoint.sh | — | Shared-workspace mount (optional) |
 | `USERNAME` / `SESSION_ID` | entrypoint.sh | — | Used for workspace mount path |
 
+## OrangeFS — Shared Workspace
+
+OrangeFS is a cloud-native FUSE filesystem that gives each container session a persistent, user-scoped workspace backed by remote storage. It is **optional**: if the binary is absent, `entrypoint.sh` skips the mount and the container still works normally with a local `/workspace`.
+
+### How it works
+
+`entrypoint.sh` mounts a sub-directory of an OrangeFS volume as the session workspace:
+
+```
+volume root
+└── <USERNAME>/
+    └── <SESSION_ID>/   ← mounted at /workspace/<USERNAME>/<SESSION_ID>
+```
+
+The `--subpath` flag scopes the mount to `<USERNAME>/<SESSION_ID>`, so the container sees only its own slice of the volume — not the entire volume tree.
+
+### Including the binary in the image
+
+The Dockerfile `ARG ORANGEFS_URL` controls whether the binary is baked in:
+
+```bash
+# Include orangefs (default — points to an internal S3 URL):
+docker compose build --profile sandbox-images
+
+# Build WITHOUT orangefs (air-gapped or OSS environments):
+docker compose build --profile sandbox-images \
+  --build-arg ORANGEFS_URL=""
+```
+
+If `ORANGEFS_URL` is empty the `curl` step is skipped and `/usr/local/bin/orangefs` will not exist. `entrypoint.sh` checks for the binary with `-x` before attempting any mount, so no code change is needed.
+
+### Runtime environment variables
+
+Pass these when creating a sandbox container (e.g. via `POST /sandboxes` env overrides):
+
+| Variable | Required | Description |
+|---|---|---|
+| `ORANGEFS_RS_ADDR` | yes | Root-server address, e.g. `10.0.0.1:8080` |
+| `ORANGEFS_TOKEN` | yes | Auth token for the root server |
+| `ORANGEFS_VOLUME` | yes | Volume name to mount |
+| `USERNAME` | yes | User identifier — forms the first path segment of the subpath |
+| `SESSION_ID` | yes | Session identifier — forms the second path segment |
+
+### Mount path
+
+The workspace is always mounted at `/workspace/<USERNAME>/<SESSION_ID>`. Claude Code and the `claude-agent-server` both have `/workspace` as their working directory, so files written there are automatically persisted to the remote volume.
+
+### Debugging a failed mount
+
+If the mount fails at startup, `entrypoint.sh` prints the OrangeFS log to stdout:
+
+```bash
+# Tail container logs from the host:
+docker logs <container-id>
+
+# Or inspect the log file inside a running container:
+cat /tmp/orangefs.log
+```
+
+Common causes:
+- `ORANGEFS_RS_ADDR` unreachable from inside the container (check egress policy / network mode).
+- `ORANGEFS_TOKEN` invalid or expired.
+- `ORANGEFS_VOLUME` name does not exist on the root server.
+- `/dev/fuse` not available — ensure `devices = ["/dev/fuse:/dev/fuse:rwm"]` and `privileged = true` are set in `docker/opensandbox/config.toml`.
+
 ## Operational Notes
 
 - **`docker.sock` bind mount** is required for opensandbox-server to spawn containers; see `docker-compose.yaml`.

@@ -68,12 +68,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 
-# TODO: remove mirror if not needed
 # Python mitmproxy (transparent mode): mitmdump runs as user mitmproxy; iptables skips this uid.
 RUN useradd -r -u 10042 -d /var/lib/mitmproxy -s /usr/sbin/nologin mitmproxy \
     && mkdir -p /var/lib/mitmproxy \
     && chown mitmproxy:mitmproxy /var/lib/mitmproxy \
-    && pip3 install --no-cache-dir --break-system-packages -i https://pypi.tuna.tsinghua.edu.cn/simple 'mitmproxy>=10,<11' \
+    && pip3 install --no-cache-dir --break-system-packages 'mitmproxy>=10,<11' \
     && (command -v mitmdump && mitmdump --version) \
     && mkdir -p /var/egress/mitmscripts
 

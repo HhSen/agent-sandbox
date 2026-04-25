@@ -33,6 +33,7 @@ from websockets.typing import Origin
 from opensandbox_server.api import lifecycle
 from opensandbox_server.api.schema import Endpoint
 from opensandbox_server.middleware.auth import SANDBOX_API_KEY_HEADER
+from opensandbox_server.services.constants import OPEN_SANDBOX_SECURE_ACCESS_HEADER
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,11 @@ def _filter_proxy_headers(
     extra_excluded: Optional[set[str]] = None,
     connection_header: Optional[str] = None,
 ) -> dict[str, str]:
-    """Drop transport/auth headers while preserving app-level headers."""
+    """Drop transport/auth headers while preserving app-level headers.
+
+    Endpoint-resolved headers are merged for routing, except secure-access
+    credentials which callers must explicitly provide on server-proxy requests.
+    """
     excluded = set(HOP_BY_HOP_HEADERS) | set(SENSITIVE_HEADERS)
     if extra_excluded:
         excluded.update(extra_excluded)
@@ -113,7 +118,13 @@ def _filter_proxy_headers(
             forwarded[key] = value
 
     if endpoint_headers:
-        forwarded.update(endpoint_headers)
+        forwarded.update(
+            {
+                key: value
+                for key, value in endpoint_headers.items()
+                if key.lower() != OPEN_SANDBOX_SECURE_ACCESS_HEADER.lower()
+            }
+        )
     return forwarded
 
 
@@ -157,17 +168,26 @@ async def _proxy_http_request(
                 detail="Websocket upgrade is not supported yet",
             )
 
-        stream_body = request.method in ("POST", "PUT", "PATCH", "DELETE")
-        # When the body is not forwarded, strip Content-Length so the backend does
-        # not wait for a body that will never arrive (causes unexpected EOF / truncated
-        # responses when the original caller sent a body with their GET request).
-        no_body_excluded = None if stream_body else {"content-length"}
         headers = _filter_proxy_headers(
             request.headers,
             endpoint.headers,
             connection_header=request.headers.get("connection"),
-            extra_excluded=no_body_excluded,
         )
+        # Inject standard reverse-proxy headers. Check for existing values
+        # case-insensitively so an already-present header with any casing
+        # (e.g. lowercase "x-forwarded-proto" from an upstream edge) is
+        # preserved and we don't emit a duplicate with different casing,
+        # which would break chain-safe semantics for downstream backends.
+        existing_lower = {key.lower() for key in headers}
+        if "x-forwarded-proto" not in existing_lower:
+            headers["X-Forwarded-Proto"] = request.url.scheme
+        inbound_host = request.headers.get("host", "")
+        if inbound_host and "x-forwarded-host" not in existing_lower:
+            headers["X-Forwarded-Host"] = inbound_host
+        if request.client and "x-forwarded-for" not in existing_lower:
+            headers["X-Forwarded-For"] = request.client.host
+
+        stream_body = request.method in ("POST", "PUT", "PATCH", "DELETE")
         req = client.build_request(
             method=request.method,
             url=target_url,
