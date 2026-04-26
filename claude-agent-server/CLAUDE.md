@@ -1,4 +1,6 @@
-# CLAUDE.md
+# claude-agent-server — TypeScript HTTP Wrapper
+
+> Navigation: [Root](../CLAUDE.md)
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -73,3 +75,8 @@ src/lib/
 - `exactOptionalPropertyTypes: true` — optional properties must be explicitly `undefined`, not just omitted.
 - `noUncheckedIndexedAccess: true` — array/map index access returns `T | undefined`.
 - Tests live in `tests/` but are not included in the TypeScript project (`tsconfig.json` only covers `src/`). Vitest handles test compilation independently.
+
+## Scan Snapshot
+
+- Date: 2026-04-26
+- Scope: src/ tree — server.ts, app.ts, all routes, all lib sub-areas

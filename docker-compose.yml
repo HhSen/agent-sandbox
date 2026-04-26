@@ -6,14 +6,14 @@ services:
 
   opensandbox-server:
     build:
-      dockerfile: docker/opensandbox/Dockerfile
+      dockerfile: opensandbox_server/Dockerfile
     image: opensandbox/server:local
     container_name: opensandbox-server
     restart: unless-stopped
     network_mode: host
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./docker/opensandbox/config.toml:/etc/opensandbox/config.toml:ro
+      - ./opensandbox_server/config.toml:/etc/opensandbox/config.toml:ro
     environment:
       - SANDBOX_CONFIG_PATH=/etc/opensandbox/config.toml
 
@@ -43,9 +43,19 @@ services:
   code-interpreter:
     build:
       context: .
-      dockerfile: docker/code-interpreter/Dockerfile
+      dockerfile: code-interpreter/Dockerfile
       platforms:
         - linux/amd64
     image: opensandbox/code-interpreter:local
     profiles: [ sandbox-images ]
     entrypoint: [ "true" ]
+
+  console:
+    build:
+      context: ./console
+      dockerfile: Dockerfile
+    image: opensandbox/console:local
+    container_name: opensandbox-console
+    restart: unless-stopped
+    ports:
+      - "${CONSOLE_PORT:-4173}:4173"

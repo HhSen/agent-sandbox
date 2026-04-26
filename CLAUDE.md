@@ -15,22 +15,27 @@ A sandbox platform that runs isolated Claude Code sessions inside Docker contain
 ```
 agent-sandbox/
 ├── docker-compose.yaml                # Orchestrates opensandbox-server + image builds
-├── docker/
-│   ├── code-interpreter/              # Main sandbox image (Ubuntu + Python + Node + claude-agent-server)
-│   │   ├── Dockerfile                 # 4-stage build; context must be repo root
-│   │   ├── bootstrap.sh               # Starts execd, then exec's CMD
-│   │   ├── entrypoint.sh              # Mounts orangefs (optional), starts claude-agent-server
-│   │   └── code-interpreter-env.sh    # Exports correct Node/Python version to PATH
-│   └── opensandbox/
-│       ├── Dockerfile                 # Builds opensandbox-server image
-│       └── config.toml                # Runtime config mounted at /etc/opensandbox/config.toml
+├── code-interpreter/                  # Main sandbox image (Ubuntu + Python + Node + claude-agent-server)
+│   ├── Dockerfile                     # 4-stage build; context must be repo root
+│   ├── bootstrap.sh                   # Starts execd, then exec's CMD
+│   ├── entrypoint.sh                  # Mounts orangefs (optional), starts claude-agent-server
+│   └── code-interpreter-env.sh        # Exports correct Node/Python version to PATH
+├── console/                           # Web UI (React + Vite)
+│   └── Dockerfile                     # Builds console image; context is console/
 ├── claude-agent-server/               # TypeScript HTTP wrapper around @anthropic-ai/claude-agent-sdk
 │   └── CLAUDE.md                      # Full guide — read this before touching claude-agent-server/
 ├── opensandbox_server/                # Python FastAPI control plane (container management API)
+│   ├── Dockerfile                     # Builds opensandbox-server image; context must be repo root
+│   ├── config.toml                    # Runtime config mounted at /etc/opensandbox/config.toml
 │   └── opensandbox_server/
-│       ├── main.py                    # FastAPI app + config loading
+│       ├── main.py                    # FastAPI app, middleware, lifespan, router mounting
 │       ├── cli.py                     # CLI entry point (opensandbox-server binary)
-│       ├── config.py                  # Pydantic config models + TOML loading
+│       ├── config.py                  # Pydantic AppConfig + TOML loading
+│       ├── api/                       # FastAPI routers: lifecycle, devops, pool, proxy
+│       ├── services/                  # SandboxService base + Docker/K8s implementations
+│       ├── middleware/                # Auth + RequestId middleware
+│       ├── integrations/              # renew_intent Redis pub/sub
+│       ├── extensions/                # Extension validation helpers
 │       └── examples/                  # Packaged example config templates
 └── opensandbox_components/            # Go binaries that run inside or alongside containers
     ├── execd/                         # Process/code-execution daemon (runs inside container)
@@ -49,7 +54,7 @@ agent-sandbox/
 | `opensandbox_components/egress/` | In-container outbound network policy + DNS proxy (Go) |
 | `opensandbox_components/ingress/` | Sidecar HTTP proxy for inbound connections to containers (Go) |
 | `opensandbox_components/internal/` | Shared Go utilities only — no business logic |
-| `docker/` | Dockerfile definitions and runtime configs for the two main images |
+| `code-interpreter/` | Dockerfile + runtime scripts for the main sandbox image |
 
 ## Cross-Module Flows
 
@@ -199,15 +204,15 @@ Common causes:
 - `ORANGEFS_RS_ADDR` unreachable from inside the container (check egress policy / network mode).
 - `ORANGEFS_TOKEN` invalid or expired.
 - `ORANGEFS_VOLUME` name does not exist on the root server.
-- `/dev/fuse` not available — ensure `devices = ["/dev/fuse:/dev/fuse:rwm"]` and `privileged = true` are set in `docker/opensandbox/config.toml`.
+- `/dev/fuse` not available — ensure `devices = ["/dev/fuse:/dev/fuse:rwm"]` and `privileged = true` are set in `opensandbox_server/config.toml`.
 
 ## Operational Notes
 
 - **`docker.sock` bind mount** is required for opensandbox-server to spawn containers; see `docker-compose.yaml`.
-- **`privileged: true`** is set in `docker/opensandbox/config.toml` for container sandboxes — required for FUSE/orangefs and network namespacing.
+- **`privileged: true`** is set in `opensandbox_server/config.toml` for container sandboxes — required for FUSE/orangefs and network namespacing.
 - **egress/ingress are not started by docker-compose**; they run inside or alongside individual sandbox containers as configured by opensandbox-server.
 - **orangefs** (shared workspace) is optional; `entrypoint.sh` skips the mount if `/usr/local/bin/orangefs` is absent.
-- The APT mirror fallback chain in `docker/code-interpreter/Dockerfile` (Aliyun → TUNA → USTC → upstream) is specific to the original deployment environment — remove if not needed.
+- The APT mirror fallback chain in `code-interpreter/Dockerfile` (Aliyun → TUNA → USTC → upstream) is specific to the original deployment environment — remove if not needed.
 
 ## Local Guides
 
@@ -216,8 +221,14 @@ Common causes:
 - [`claude-agent-server/src/lib/claude/CLAUDE.md`](claude-agent-server/src/lib/claude/CLAUDE.md) — SDK wrapper, session service, runtime registry
 - [`claude-agent-server/src/lib/http/CLAUDE.md`](claude-agent-server/src/lib/http/CLAUDE.md) — error handling, SSE helpers
 - [`claude-agent-server/src/routes/CLAUDE.md`](claude-agent-server/src/routes/CLAUDE.md) — endpoint map, batch vs SSE flow
+- [`opensandbox_server/CLAUDE.md`](opensandbox_server/CLAUDE.md) — Python control plane: routers, services, runtime backends, middleware
+- [`opensandbox_components/CLAUDE.md`](opensandbox_components/CLAUDE.md) — Go components index: execd, egress, ingress, internal
+- [`opensandbox_components/execd/CLAUDE.md`](opensandbox_components/execd/CLAUDE.md) — in-container execution daemon: routes, runtime, Jupyter, PTY
+- [`opensandbox_components/egress/CLAUDE.md`](opensandbox_components/egress/CLAUDE.md) — outbound network control: DNS proxy, nftables, policy API
+- [`opensandbox_components/ingress/CLAUDE.md`](opensandbox_components/ingress/CLAUDE.md) — inbound HTTP proxy, K8s sandbox provider, renew-intent
+- [`opensandbox_components/internal/CLAUDE.md`](opensandbox_components/internal/CLAUDE.md) — shared Go utilities (logger, safego, telemetry, version)
 
 ## Scan Snapshot
 
-- Date: 2026-04-23
+- Date: 2026-04-26
 - Scope: full repo — docker-compose.yaml, all Dockerfiles, claude-agent-server/, opensandbox_server/, opensandbox_components/ structure, bootstrap/entrypoint scripts

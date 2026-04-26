@@ -89,7 +89,7 @@ RUN mkdir -p ${NODE_ROOT} && \
 ENV PATH="${NODE_ROOT}/v${NODE_V22}/bin:${PATH}"
 
 RUN mkdir -p /opt/opensandbox
-COPY docker/code-interpreter/code-interpreter-env.sh /opt/opensandbox/code-interpreter-env.sh
+COPY code-interpreter/code-interpreter-env.sh /opt/opensandbox/code-interpreter-env.sh
 RUN chmod +x /opt/opensandbox/code-interpreter-env.sh
 
 # --- Stage 3: Code interpreter ---
@@ -134,8 +134,8 @@ COPY --from=server-builder /app/docs /app/docs
 COPY --from=server-builder /app/node_modules /app/node_modules
 COPY --from=server-builder /app/package.json /app/package.json
 
-COPY docker/code-interpreter/bootstrap.sh /opt/opensandbox/bootstrap.sh
-COPY docker/code-interpreter/entrypoint.sh /entrypoint.sh
+COPY code-interpreter/bootstrap.sh /opt/opensandbox/bootstrap.sh
+COPY code-interpreter/entrypoint.sh /entrypoint.sh
 RUN chmod +x /opt/opensandbox/bootstrap.sh /entrypoint.sh
 
 # HTTP server port
