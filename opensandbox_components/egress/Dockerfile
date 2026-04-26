@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.24-bookworm AS builder
+FROM golang:1.25.9-bookworm AS builder
 
 WORKDIR /workspace
 
@@ -21,22 +21,22 @@ ARG GIT_COMMIT=unknown
 ARG BUILD_TIME=unknown
 
 # Copy only go mod/sum first for better caching
-COPY opensandbox_components/egress/go.mod opensandbox_components/egress/go.sum ./opensandbox_components/egress/
+COPY components/egress/go.mod components/egress/go.sum ./components/egress/
 # Bring internal module so replace ../internal works during download/build
-COPY opensandbox_components/internal ./opensandbox_components/internal
+COPY components/internal ./components/internal
 
-WORKDIR /workspace/opensandbox_components/egress
+WORKDIR /workspace/components/egress
 
 # Static-ish build (no cgo) to simplify runtime deps
 ENV CGO_ENABLED=0
 RUN go mod download
 
 # Copy the rest of the egress sources
-COPY opensandbox_components/egress ./
+COPY components/egress ./
 RUN CGO_ENABLED=0 go build \
     -ldflags "-X 'github.com/alibaba/opensandbox/internal/version.Version=${VERSION}' \
-    -X 'github.com/alibaba/opensandbox/internal/version.BuildTime=${BUILD_TIME}' \
-    -X 'github.com/alibaba/opensandbox/internal/version.GitCommit=${GIT_COMMIT}'" \
+              -X 'github.com/alibaba/opensandbox/internal/version.BuildTime=${BUILD_TIME}' \
+              -X 'github.com/alibaba/opensandbox/internal/version.GitCommit=${GIT_COMMIT}'" \
     -o /out/egress .
 
 FROM debian:bookworm-slim
@@ -44,29 +44,28 @@ FROM debian:bookworm-slim
 # iptables is needed for DNS REDIRECT; ca-certificates for TLS to upstream resolvers
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    iptables \
-    iproute2 \
-    nftables \
-    ca-certificates \
-    sudo \
-    curl \
-    wget \
-    net-tools \
-    dnsutils \
-    netcat-openbsd \
-    iputils-ping \
-    traceroute \
-    telnet \
-    tcpdump \
-    nmap \
-    htop \
-    procps \
-    strace \
-    lsof \
-    python3 \
-    python3-pip \
+        iptables \
+        iproute2 \
+        nftables \
+        ca-certificates \
+        sudo \
+        curl \
+        wget \
+        net-tools \
+        dnsutils \
+        netcat-openbsd \
+        iputils-ping \
+        traceroute \
+        telnet \
+        tcpdump \
+        nmap \
+        htop \
+        procps \
+        strace \
+        lsof \
+        python3 \
+        python3-pip \
     && rm -rf /var/lib/apt/lists/*
-
 
 # Python mitmproxy (transparent mode): mitmdump runs as user mitmproxy; iptables skips this uid.
 RUN useradd -r -u 10042 -d /var/lib/mitmproxy -s /usr/sbin/nologin mitmproxy \
@@ -78,7 +77,7 @@ RUN useradd -r -u 10042 -d /var/lib/mitmproxy -s /usr/sbin/nologin mitmproxy \
 
 COPY --from=builder /out/egress /egress
 
-COPY opensandbox_components/egress/mitmscripts /var/egress/mitmscripts
+COPY components/egress/mitmscripts /var/egress/mitmscripts
 
 # Default entrypoint; expects OPENSANDBOX_NETWORK_POLICY env at runtime.
 ENTRYPOINT ["/egress"]

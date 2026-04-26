@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.24.0 AS builder
+FROM golang:1.25.9 AS builder
 
 WORKDIR /build
 
@@ -21,18 +21,18 @@ ARG GIT_COMMIT=unknown
 ARG BUILD_TIME=unknown
 
 # Prepare local modules to satisfy replace directives.
-COPY opensandbox_components/internal/go.mod opensandbox_components/internal/go.sum ./opensandbox_components/internal/
-COPY opensandbox_components/execd/go.mod opensandbox_components/execd/go.sum ./opensandbox_components/execd/
+COPY components/internal/go.mod components/internal/go.sum ./components/internal/
+COPY components/execd/go.mod components/execd/go.sum ./components/execd/
 
 # Download deps with only mod files for better caching.
-RUN cd opensandbox_components/internal && go mod download
-RUN cd opensandbox_components/execd && go mod download
+RUN cd components/internal && go mod download
+RUN cd components/execd && go mod download
 
 # Copy sources.
-COPY opensandbox_components/internal ./opensandbox_components/internal
-COPY opensandbox_components/execd ./opensandbox_components/execd
+COPY components/internal ./components/internal
+COPY components/execd ./components/execd
 
-WORKDIR /build/opensandbox_components/execd
+WORKDIR /build/components/execd
 
 RUN CGO_ENABLED=0 go build \
     -ldflags "-X 'github.com/alibaba/opensandbox/internal/version.Version=${VERSION}' \
@@ -50,7 +50,7 @@ FROM alpine:latest
 
 COPY --from=builder /build/execd .
 COPY --from=builder /build/execd.exe ./execd.exe
-COPY opensandbox_components/execd/bootstrap.sh ./bootstrap.sh
-COPY opensandbox_components/execd/install.bat ./install.bat
+COPY components/execd/bootstrap.sh ./bootstrap.sh
+COPY components/execd/install.bat ./install.bat
 
 ENTRYPOINT ["./execd"]

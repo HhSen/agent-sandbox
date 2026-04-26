@@ -1,3 +1,5 @@
 **
-!opensandbox_components/execd/**
-!opensandbox_components/internal/**
+!components/execd/**
+!components/internal/**
+!execd/**
+!internal/**

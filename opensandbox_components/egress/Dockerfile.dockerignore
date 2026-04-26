@@ -1,3 +1,5 @@
 **
-!opensandbox_components/egress/**
-!opensandbox_components/internal/**
+!components/egress/**
+!components/internal/**
+!egress/**
+!internal/**
