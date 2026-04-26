@@ -131,7 +131,9 @@ class RenewIntentRedisConfig(BaseModel):
     @model_validator(mode="after")
     def require_dsn_when_redis_enabled(self) -> "RenewIntentRedisConfig":
         if self.enabled and (self.dsn is None or not str(self.dsn).strip()):
-            raise ValueError("[renew_intent] redis.dsn must be set when redis.enabled is true.")
+            raise ValueError(
+                "[renew_intent] redis.dsn must be set when redis.enabled is true."
+            )
         return self
 
 
@@ -217,9 +219,7 @@ class IngressConfig(BaseModel):
             address_raw = self.gateway.address
             hostport = address_raw
             if "://" in address_raw:
-                raise ValueError(
-                    "ingress.gateway.address must not include a scheme; clients choose http/https."
-                )
+                raise ValueError("ingress.gateway.address must not include a scheme; clients choose http/https.")
 
             if route_mode == GATEWAY_ROUTE_MODE_WILDCARD:
                 if not _is_wildcard_domain(hostport):
@@ -290,9 +290,7 @@ class LogConfig(BaseModel):
     # Default paths when file_enabled=true and user paths are not set.
     # Uses ~/logs/opensandbox/ which is writable for non-root users.
     DEFAULT_FILE_PATH: ClassVar[str] = str(Path.home() / "logs" / "opensandbox" / "server.log")
-    DEFAULT_ACCESS_FILE_PATH: ClassVar[str] = str(
-        Path.home() / "logs" / "opensandbox" / "access.log"
-    )
+    DEFAULT_ACCESS_FILE_PATH: ClassVar[str] = str(Path.home() / "logs" / "opensandbox" / "access.log")
 
     def resolved_file_path(self) -> Optional[str]:
         """Return the effective file path, using default if file_enabled and not overridden."""
@@ -372,7 +370,9 @@ class KubernetesRuntimeConfig(BaseModel):
     informer_watch_timeout_seconds: int = Field(
         default=60,
         ge=1,
-        description=("[Beta] Watch timeout (seconds) before restarting the informer stream."),
+        description=(
+            "[Beta] Watch timeout (seconds) before restarting the informer stream."
+        ),
     )
     read_qps: float = Field(
         default=0.0,
@@ -386,7 +386,8 @@ class KubernetesRuntimeConfig(BaseModel):
         default=0,
         ge=0,
         description=(
-            "Burst size for the read rate limiter. 0 means use read_qps as burst (minimum 1)."
+            "Burst size for the read rate limiter. "
+            "0 means use read_qps as burst (minimum 1)."
         ),
     )
     write_qps: float = Field(
@@ -401,7 +402,8 @@ class KubernetesRuntimeConfig(BaseModel):
         default=0,
         ge=0,
         description=(
-            "Burst size for the write rate limiter. 0 means use write_qps as burst (minimum 1)."
+            "Burst size for the write rate limiter. "
+            "0 means use write_qps as burst (minimum 1)."
         ),
     )
     namespace: Optional[str] = Field(
@@ -496,9 +498,7 @@ class StorageConfig(BaseModel):
         ),
     )
 
-
 DEFAULT_EGRESS_DISABLE_IPV6 = True
-
 
 class EgressConfig(BaseModel):
     """Egress sidecar configuration."""
@@ -651,21 +651,6 @@ class DockerConfig(BaseModel):
         ge=1,
         description="Maximum number of processes allowed per sandbox container. Set to null to disable the limit.",
     )
-    devices: list[str] = Field(
-        default_factory=list,
-        description=(
-            "Host devices to expose inside sandbox containers, in 'host_path:container_path:permissions' format "
-            "(e.g. '/dev/fuse:/dev/fuse:rwm'). Required for FUSE-based mounts inside sandboxes."
-        ),
-    )
-    privileged: bool = Field(
-        default=False,
-        description=(
-            "Run sandbox containers in privileged mode, granting full host-kernel access. "
-            "When true, cap_drop and no_new_privileges are superseded by Docker and have no effect. "
-            "Only enable this in trusted, isolated environments."
-        ),
-    )
 
 
 class AppConfig(BaseModel):
@@ -698,15 +683,11 @@ class AppConfig(BaseModel):
             if self.kubernetes is not None:
                 raise ValueError("Kubernetes block must be omitted when runtime.type = 'docker'.")
             if self.agent_sandbox is not None:
-                raise ValueError(
-                    "agent_sandbox block must be omitted when runtime.type = 'docker'."
-                )
+                raise ValueError("agent_sandbox block must be omitted when runtime.type = 'docker'.")
             if self.ingress is not None and self.ingress.mode != INGRESS_MODE_DIRECT:
                 raise ValueError("ingress.mode must be 'direct' when runtime.type = 'docker'.")
             if self.secure_runtime is not None and self.secure_runtime.type == "firecracker":
-                raise ValueError(
-                    "secure_runtime.type 'firecracker' is only compatible with runtime.type='kubernetes'."
-                )
+                raise ValueError( "secure_runtime.type 'firecracker' is only compatible with runtime.type='kubernetes'.")
         elif self.runtime.type == "kubernetes":
             if self.kubernetes is None:
                 self.kubernetes = KubernetesRuntimeConfig()
